@@ -3,6 +3,7 @@
 # A JUCE-free static library of the reusable hardware drivers:
 #   * encoder      -- quadrature rotary encoders (libgpiod)
 #   * footswitch   -- momentary switches read over SPI (spidev)
+#   * gpio_button  -- momentary push-switch on a raw GPIO line (libgpiod)
 #   * leds         -- NeoPixel state lights
 #   * ili9341      -- SPI TFT panel driver (spidev + libgpiod)
 #   * lvgl_display -- glue that drives an LVGL UI onto the ILI9341
@@ -35,6 +36,7 @@ target_include_directories(lvgl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(pistomp_hal STATIC
   encoder.cpp
   footswitch.cpp
+  gpio_button.cpp
   leds.cpp
   ili9341.cpp
   lvgl_display.cpp
