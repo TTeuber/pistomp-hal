@@ -7,21 +7,70 @@
 #   * leds         -- NeoPixel state lights
 #   * ili9341      -- SPI TFT panel driver (spidev + libgpiod)
 #   * lvgl_display -- glue that drives an LVGL UI onto the ILI9341
+#   * audio_io     -- realtime duplex audio on the codec (ALSA)
 #
 # Owns the LVGL dependency (and its lv_conf.h), exposed PUBLICly so any consumer
-# that links pistomp_hal also gets LVGL, libgpiod and the driver headers without
-# repeating the wiring. Deliberately depends on NO audio framework -- the HAL is
-# about hardware lines, not DSP, so it stays reusable across apps.
+# that links pistomp_hal also gets LVGL and the driver headers without repeating
+# the wiring. Deliberately depends on NO audio framework -- the HAL is about
+# hardware lines, not DSP, so it stays reusable across apps.
+#
+# PLATFORMS. Each subsystem's header is the contract; the .cpp behind it is
+# selected per platform here -- "a file move, not a rewrite":
+#   * Linux/Pi (else branch): the real drivers (libgpiod, spidev, ALSA, ILI9341).
+#   * macOS (APPLE branch): a desktop simulator -- LVGL in an SDL window, audio
+#     via miniaudio/CoreAudio, controls fed from the keyboard. Lets the whole app
+#     run on the Mac with no Pi. See *_sim.cpp / *_stub.cpp / *_sdl.cpp / *_mac.cpp.
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GPIOD REQUIRED libgpiod)   # libgpiod v1 C API
-pkg_check_modules(ALSA REQUIRED alsa)        # libasound, for audio_io (codec I/O)
 find_package(Threads REQUIRED)
+include(FetchContent)
+
+if(APPLE)
+  # --- macOS desktop simulator backend -------------------------------------
+  find_package(SDL2 REQUIRED)   # brew install sdl2
+
+  # miniaudio: single public-domain header. Populate ONLY (SOURCE_SUBDIR points
+  # at a path with no CMakeLists.txt, so MakeAvailable fetches the source but
+  # does NOT configure miniaudio's own CMake -- we don't want its vorbis/opus/
+  # node-graph machinery, just the header, which we compile via our own TU).
+  FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 0.11.25
+    GIT_SHALLOW TRUE
+    SOURCE_SUBDIR  do-not-configure
+  )
+  FetchContent_MakeAvailable(miniaudio)   # ${miniaudio_SOURCE_DIR}/miniaudio.h
+
+  set(HAL_SOURCES
+    encoder_sim.cpp
+    footswitch_sim.cpp
+    gpio_button_sim.cpp
+    leds_stub.cpp
+    ili9341_stub.cpp
+    lvgl_display_sdl.cpp
+    audio_io_mac.cpp
+    sim_input.cpp
+  )
+else()
+  # --- Linux / Raspberry Pi hardware backend -------------------------------
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(GPIOD REQUIRED libgpiod)   # libgpiod v1 C API
+  pkg_check_modules(ALSA REQUIRED alsa)        # libasound, for audio_io (codec I/O)
+
+  set(HAL_SOURCES
+    encoder.cpp
+    footswitch.cpp
+    gpio_button.cpp
+    leds.cpp
+    ili9341.cpp
+    lvgl_display.cpp
+    audio_io.cpp
+  )
+endif()
 
 # --- LVGL v9. Point it at our lv_conf.h via LV_CONF_INCLUDE_SIMPLE + adding this
 #     dir to LVGL's include path (the most version-robust way to supply a config
 #     through FetchContent). Skip its examples/demos. ---
-include(FetchContent)
 FetchContent_Declare(
   lvgl
   GIT_REPOSITORY https://github.com/lvgl/lvgl.git
@@ -34,31 +83,43 @@ FetchContent_MakeAvailable(lvgl)
 target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
 target_include_directories(lvgl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(pistomp_hal STATIC
-  encoder.cpp
-  footswitch.cpp
-  gpio_button.cpp
-  leds.cpp
-  ili9341.cpp
-  lvgl_display.cpp
-  audio_io.cpp
-)
+# On macOS, turn on LVGL's built-in SDL window/mouse/keyboard driver and give
+# the lvgl target SDL2 so its drivers/sdl/*.c compile and link (they #include
+# <SDL2/SDL.h>). PUBLIC so our SDL display backend sees the same headers.
+if(APPLE)
+  target_compile_definitions(lvgl PUBLIC LV_USE_SDL=1)
+  target_link_libraries(lvgl PUBLIC SDL2::SDL2)
+endif()
 
-# PUBLIC so consumers inherit the driver headers, LVGL, libgpiod and threads just
-# by linking pistomp_hal.
-target_include_directories(pistomp_hal PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${GPIOD_INCLUDE_DIRS}
-)
+add_library(pistomp_hal STATIC ${HAL_SOURCES})
+
+target_include_directories(pistomp_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(pistomp_hal PUBLIC
   lvgl
-  ${GPIOD_LIBRARIES}
   Threads::Threads
 )
 
-# libasound is needed only by audio_io.cpp, and audio_io.h is deliberately
-# ALSA-free, so keep it PRIVATE: consumers don't take ALSA headers into their
-# compile. (As a static lib, the link itself still propagates to the final
-# executable, which is fine -- libasound is always present on the Pi.)
-target_include_directories(pistomp_hal PRIVATE ${ALSA_INCLUDE_DIRS})
-target_link_libraries(pistomp_hal PRIVATE ${ALSA_LIBRARIES})
+if(APPLE)
+  # miniaudio header + the CoreAudio frameworks its backend needs. PRIVATE: the
+  # header (with MINIAUDIO_IMPLEMENTATION) is an implementation detail of
+  # audio_io_mac.cpp, just like libasound is on the Pi.
+  target_include_directories(pistomp_hal PRIVATE ${miniaudio_SOURCE_DIR})
+  target_link_libraries(pistomp_hal PRIVATE
+    SDL2::SDL2
+    "-framework CoreFoundation"
+    "-framework CoreAudio"
+    "-framework AudioToolbox"
+    "-framework AudioUnit"
+  )
+else()
+  # PUBLIC libgpiod so consumers inherit the driver headers just by linking.
+  target_include_directories(pistomp_hal PUBLIC ${GPIOD_INCLUDE_DIRS})
+  target_link_libraries(pistomp_hal PUBLIC ${GPIOD_LIBRARIES})
+
+  # libasound is needed only by audio_io.cpp, and audio_io.h is deliberately
+  # ALSA-free, so keep it PRIVATE: consumers don't take ALSA headers into their
+  # compile. (As a static lib, the link still propagates to the final
+  # executable, which is fine -- libasound is always present on the Pi.)
+  target_include_directories(pistomp_hal PRIVATE ${ALSA_INCLUDE_DIRS})
+  target_link_libraries(pistomp_hal PRIVATE ${ALSA_LIBRARIES})
+endif()
