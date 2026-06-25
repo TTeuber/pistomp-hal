@@ -15,6 +15,7 @@
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GPIOD REQUIRED libgpiod)   # libgpiod v1 C API
+pkg_check_modules(ALSA REQUIRED alsa)        # libasound, for audio_io (codec I/O)
 find_package(Threads REQUIRED)
 
 # --- LVGL v9. Point it at our lv_conf.h via LV_CONF_INCLUDE_SIMPLE + adding this
@@ -40,6 +41,7 @@ add_library(pistomp_hal STATIC
   leds.cpp
   ili9341.cpp
   lvgl_display.cpp
+  audio_io.cpp
 )
 
 # PUBLIC so consumers inherit the driver headers, LVGL, libgpiod and threads just
@@ -53,3 +55,10 @@ target_link_libraries(pistomp_hal PUBLIC
   ${GPIOD_LIBRARIES}
   Threads::Threads
 )
+
+# libasound is needed only by audio_io.cpp, and audio_io.h is deliberately
+# ALSA-free, so keep it PRIVATE: consumers don't take ALSA headers into their
+# compile. (As a static lib, the link itself still propagates to the final
+# executable, which is fine -- libasound is always present on the Pi.)
+target_include_directories(pistomp_hal PRIVATE ${ALSA_INCLUDE_DIRS})
+target_link_libraries(pistomp_hal PRIVATE ${ALSA_LIBRARIES})

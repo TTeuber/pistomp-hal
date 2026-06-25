@@ -19,6 +19,11 @@ public:
     void clear();                                       // stage all-off
     bool show();                                        // push staged frame to the strip
 
+    // Set the driver's global brightness multiplier (0..255). The ws2812-pio
+    // overlay scales every pixel by this; a 1-byte write to offset 0 sets it
+    // (vs. the 24-byte pixel frame -- the driver dispatches on write size).
+    bool set_brightness(uint8_t multiplier);
+
 private:
     int fd_ = -1;
     uint8_t frame_[COUNT * 4] = {0};   // R,G,B,W per pixel; W unused (kept 0)

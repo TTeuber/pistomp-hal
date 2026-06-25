@@ -34,6 +34,16 @@ bool Leds::show() {
     return true;
 }
 
+bool Leds::set_brightness(uint8_t multiplier) {
+    if (fd_ < 0) return false;
+    // A 1-byte write to offset 0 is the global multiplier (not pixel data).
+    if (pwrite(fd_, &multiplier, 1, 0) != 1) {
+        perror("led brightness write");
+        return false;
+    }
+    return true;
+}
+
 void Leds::close() {
     if (fd_ >= 0) {
         clear();
