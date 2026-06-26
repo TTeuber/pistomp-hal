@@ -10,6 +10,11 @@
 //
 // miniaudio gives us float32 directly (vs ALSA's S16), so there's no integer
 // conversion — only deinterleave on the way in and interleave on the way out.
+//
+// Unlike the Pi's fixed codec, the Mac has many host devices, so this backend
+// keeps an explicit ma_context (instead of letting ma_device_init create a
+// throwaway one). The context both enumerates devices for the settings UI and
+// lets us re-open on a chosen device by name — live, via reopen().
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
@@ -74,13 +79,55 @@ void data_cb(ma_device* dev, void* pOut, const void* pIn, ma_uint32 frames) {
 } // namespace
 
 struct AudioIO::Impl {
-    MacDev d;
+    ma_context ctx;
+    bool       ctxInited = false;
+    MacDev     d;
+
+    // Resolve a device name (from AudioConfig) to its ma_device_id within the
+    // given direction's enumerated list. Returns true and fills `out` on a hit;
+    // false (caller passes nullptr to ma_device_init = system default) on an
+    // empty name or a name that's no longer present.
+    bool resolve(ma_device_type type, const std::string& name, ma_device_id& out) {
+        if (name.empty() || !ctxInited) return false;
+        ma_device_info* infos = nullptr;
+        ma_uint32 count = 0;
+        ma_result r = (type == ma_device_type_playback)
+            ? ma_context_get_devices(&ctx, &infos, &count, nullptr, nullptr)
+            : ma_context_get_devices(&ctx, nullptr, nullptr, &infos, &count);
+        if (r != MA_SUCCESS) return false;
+        for (ma_uint32 i = 0; i < count; i++)
+            if (name == infos[i].name) { out = infos[i].id; return true; }
+        return false;
+    }
 };
+
+namespace {
+
+// Enumerate one direction into the public AudioDeviceInfo list. Shared by
+// playbackDevices()/captureDevices().
+std::vector<AudioDeviceInfo> enumerate(ma_context* ctx, bool ctxInited,
+                                       ma_device_type type) {
+    std::vector<AudioDeviceInfo> out;
+    if (!ctxInited) return out;
+    ma_device_info* infos = nullptr;
+    ma_uint32 count = 0;
+    ma_result r = (type == ma_device_type_playback)
+        ? ma_context_get_devices(ctx, &infos, &count, nullptr, nullptr)
+        : ma_context_get_devices(ctx, nullptr, nullptr, &infos, &count);
+    if (r != MA_SUCCESS) return out;
+    out.reserve(count);
+    for (ma_uint32 i = 0; i < count; i++)
+        out.push_back({ infos[i].name, infos[i].isDefault != 0 });
+    return out;
+}
+
+} // namespace
 
 AudioIO::~AudioIO() {
     stop();
     if (impl_) {
         if (impl_->d.inited) ma_device_uninit(&impl_->d.device);
+        if (impl_->ctxInited) ma_context_uninit(&impl_->ctx);
         delete impl_;
         impl_ = nullptr;
     }
@@ -92,6 +139,12 @@ bool AudioIO::open(const AudioConfig& cfg) {
     MacDev& d = impl_->d;
     d.alloc(cfg.channels, cfg.maxFrames);
 
+    if (ma_context_init(nullptr, 0, nullptr, &impl_->ctx) != MA_SUCCESS) {
+        lastError_ = "miniaudio: ma_context_init failed";
+        return false;
+    }
+    impl_->ctxInited = true;
+
     ma_device_config c = ma_device_config_init(ma_device_type_duplex);
     c.sampleRate         = cfg.rate;
     c.capture.format     = ma_format_f32;
@@ -102,7 +155,14 @@ bool AudioIO::open(const AudioConfig& cfg) {
     c.dataCallback       = data_cb;
     c.pUserData          = &d;
 
-    if (ma_device_init(nullptr, &c, &d.device) != MA_SUCCESS) {
+    // Pin to the named devices when given; nullptr id = system default.
+    ma_device_id playId{}, capId{};
+    if (impl_->resolve(ma_device_type_playback, cfg.playbackName, playId))
+        c.playback.pDeviceID = &playId;
+    if (impl_->resolve(ma_device_type_capture, cfg.captureName, capId))
+        c.capture.pDeviceID = &capId;
+
+    if (ma_device_init(&impl_->ctx, &c, &d.device) != MA_SUCCESS) {
         lastError_ = "miniaudio: ma_device_init failed (no audio device?)";
         return false;
     }
@@ -130,6 +190,58 @@ void AudioIO::stop() {
     if (impl_->d.inited && running_.load())
         ma_device_stop(&impl_->d.device);
     running_.store(false);
+}
+
+std::vector<AudioDeviceInfo> AudioIO::playbackDevices() {
+    if (!impl_) return {};
+    return enumerate(&impl_->ctx, impl_->ctxInited, ma_device_type_playback);
+}
+
+std::vector<AudioDeviceInfo> AudioIO::captureDevices() {
+    if (!impl_) return {};
+    return enumerate(&impl_->ctx, impl_->ctxInited, ma_device_type_capture);
+}
+
+bool AudioIO::reopen(const AudioConfig& cfg) {
+    if (!impl_ || !impl_->ctxInited) { lastError_ = "miniaudio: not open"; return false; }
+    MacDev& d = impl_->d;
+
+    // Tear the live device down (the callback is preserved in d.cb so the caller
+    // doesn't have to re-supply it; start() will rebind whatever it's given).
+    stop();
+    if (d.inited) { ma_device_uninit(&d.device); d.inited = false; }
+
+    cfg_ = cfg;
+    // Only the block size and channel count affect the preallocated buffers;
+    // re-alloc when either changes so the RT callback stays allocation-free.
+    if (cfg.channels != d.ch || (int)d.inF.empty() || d.inF[0].size() < (size_t)cfg.maxFrames)
+        d.alloc(cfg.channels, cfg.maxFrames);
+
+    ma_device_config c = ma_device_config_init(ma_device_type_duplex);
+    c.sampleRate         = cfg.rate;
+    c.capture.format     = ma_format_f32;
+    c.capture.channels   = cfg.channels;
+    c.playback.format    = ma_format_f32;
+    c.playback.channels  = cfg.channels;
+    c.periodSizeInFrames = cfg.wantPeriod;
+    c.dataCallback       = data_cb;
+    c.pUserData          = &d;
+
+    ma_device_id playId{}, capId{};
+    if (impl_->resolve(ma_device_type_playback, cfg.playbackName, playId))
+        c.playback.pDeviceID = &playId;
+    if (impl_->resolve(ma_device_type_capture, cfg.captureName, capId))
+        c.capture.pDeviceID = &capId;
+
+    if (ma_device_init(&impl_->ctx, &c, &d.device) != MA_SUCCESS) {
+        lastError_ = "miniaudio: ma_device_init failed on reopen";
+        return false;
+    }
+    d.inited = true;
+
+    period_ = (int)cfg.wantPeriod;
+    if (period_ <= 0 || period_ > cfg.maxFrames) period_ = cfg.maxFrames;
+    return true;
 }
 
 } // namespace pistomp

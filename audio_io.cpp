@@ -156,6 +156,15 @@ void AudioIO::stop() {
     impl_->started = false;
 }
 
+// Host device selection is a macOS-simulator affordance. On the Pi the codec is
+// fixed hardware, so there's nothing to enumerate and nothing to switch to.
+std::vector<AudioDeviceInfo> AudioIO::playbackDevices() { return {}; }
+std::vector<AudioDeviceInfo> AudioIO::captureDevices()  { return {}; }
+bool AudioIO::reopen(const AudioConfig&) {
+    lastError_ = "reopen unsupported on ALSA backend";
+    return false;
+}
+
 // ---------------- THE REALTIME AUDIO THREAD ----------------
 // No malloc/printf/locks; only readi/writei may block. The DSP is the caller's
 // cb_, invoked once per block on deinterleaved float buffers.

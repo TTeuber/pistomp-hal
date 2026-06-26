@@ -73,7 +73,8 @@ const Switch kSwitches[] = {
     {Btn::FS2, 540, 470, 46, 2, 540, 385, 16},
     {Btn::FS3, 760, 470, 46, 3, 760, 385, 16},
 };
-// The two spare top-right LEDs (index 4 unused by the app; index 5 = bypass).
+// The two top-right LEDs are input-level meters: index 5 = input 1 (L),
+// index 4 = input 2 (R). Green = signal, orange = near clip, red = clipping.
 struct Lamp { int idx, cx, cy, r; };
 const Lamp kLamps[] = {
     {4, 790, 70, 18},

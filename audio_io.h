@@ -20,6 +20,8 @@
 #pragma once
 #include <atomic>
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace pistomp {
 
@@ -31,6 +33,20 @@ struct AudioConfig {
     unsigned    wantBuffer = 256;   // ring size in frames (4 periods)
     int         maxFrames  = 8192;  // hard cap on the negotiated period
     int         rtPriority = 80;    // SCHED_FIFO priority for the audio thread
+
+    // macOS simulator only (ignored by the ALSA backend): pick host devices by
+    // name. Empty = system default. Resolved against playbackDevices()/
+    // captureDevices() at open()/reopen() time; an unknown name falls back to
+    // the default so a saved-but-unplugged device doesn't break startup.
+    std::string playbackName;
+    std::string captureName;
+};
+
+// A host audio device, as reported by the platform backend. macOS only; the
+// ALSA backend returns no devices (the codec is fixed hardware).
+struct AudioDeviceInfo {
+    std::string name;
+    bool        isDefault = false;
 };
 
 // The realtime DSP callback. `frames` valid samples of DEINTERLEAVED float audio
@@ -65,6 +81,20 @@ public:
     // Ask the audio thread to finish its current block and join it. Idempotent;
     // also called by the destructor (which then drains + closes the device).
     void stop();
+
+    // Host audio devices available for capture/playback (macOS simulator). The
+    // ALSA backend returns empty — the Pi's codec is fixed. Safe to call before
+    // or after open(); enumeration uses the backend's device context.
+    std::vector<AudioDeviceInfo> playbackDevices();
+    std::vector<AudioDeviceInfo> captureDevices();
+
+    // Live device/format switch (macOS simulator): stop the running device,
+    // tear it down, and re-open on `cfg` (new playback/capture names, rate, or
+    // period). After this returns true, period() reflects the new block size —
+    // the caller must re-prepare its DSP for that block and call start() again
+    // with a callback sized to the new rate. False on failure (see lastError());
+    // the previous device is left closed. The ALSA backend returns false.
+    bool reopen(const AudioConfig& cfg);
 
     bool        running() const { return running_.load(std::memory_order_relaxed); }
     unsigned    xruns()   const { return xruns_.load(std::memory_order_relaxed); }

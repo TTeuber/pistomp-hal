@@ -31,6 +31,7 @@
 #include "footswitch.h"
 #include "gpio_button.h"
 #include "ili9341.h"
+#include "input_level.h"
 
 namespace pistomp {
 
@@ -61,6 +62,10 @@ public:
         fs.set_spi_lock(&spi_lock_);
         return true;
     }
+
+    // The two analog input-level detectors (ADC ch6/7), for the meter LEDs.
+    // Returns false in the sim (no ADC) -> InputLevel::available() stays false.
+    bool openInputLevel(InputLevel& lvl) { return lvl.init(&spi_lock_); }
 
     // ---- GPIO controls: no shared lock needed, but vended here so a program
     //      never has to know the pin numbers --------------------------------

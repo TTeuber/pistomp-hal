@@ -55,4 +55,13 @@ inline constexpr AdcChannel kFootsw[kFootswitchCount]{
     {0, 800}, {1, 800}, {2, 800}, {3, 800},
 };
 
+// ---- analog input-level detectors ------------------------------------------
+// Each audio input has a pre-gain analog peak-detector on its own MCP3008
+// channel, read for the input-level meter LEDs (see pistomp-hal/input_level.*).
+// Matches pistomptre.py: EXPRESSION=5, CLIP_L=6, CLIP_R=7. These carry a 0..1023
+// *level*, not a press, so the threshold field is unused (kept 0).
+inline constexpr AdcChannel kExpression{5, 0};   // expression pedal (no consumer yet)
+inline constexpr AdcChannel kClipL{6, 0};        // input 1 / Left  -> LED index 5
+inline constexpr AdcChannel kClipR{7, 0};        // input 2 / Right -> LED index 4
+
 } // namespace pistomp::board

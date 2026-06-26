@@ -46,10 +46,12 @@ if(APPLE)
     footswitch_sim.cpp
     gpio_button_sim.cpp
     leds_stub.cpp
+    input_level_stub.cpp
     ili9341_stub.cpp
     lvgl_display_sdl.cpp
     audio_io_mac.cpp
     sim_input.cpp
+    settings_menu_mac.mm
   )
 else()
   # --- Linux / Raspberry Pi hardware backend -------------------------------
@@ -62,9 +64,11 @@ else()
     footswitch.cpp
     gpio_button.cpp
     leds.cpp
+    input_level.cpp
     ili9341.cpp
     lvgl_display.cpp
     audio_io.cpp
+    settings_menu_stub.cpp
   )
 endif()
 
@@ -110,6 +114,7 @@ if(APPLE)
     "-framework CoreAudio"
     "-framework AudioToolbox"
     "-framework AudioUnit"
+    "-framework Cocoa"        # settings_menu_mac.mm: NSMenu / NSWindow / NSPopUpButton
   )
 else()
   # PUBLIC libgpiod so consumers inherit the driver headers just by linking.
