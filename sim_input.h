@@ -2,17 +2,23 @@
 //
 // On the Pi the encoders/footswitches/buttons are real hardware lines. In the
 // Mac simulator there's no hardware, so the *_sim.cpp drivers read their state
-// from this process-global bus instead. The bus is fed from the SDL keyboard by
-// pump(), which runs on the UI thread (registered as an LVGL timer in
-// lvgl_display_sdl.cpp). The sim drivers read it from the input thread; all
-// shared state is atomic, so there's no lock and no data race.
+// from this process-global bus instead. The bus has two writers — pump() reads
+// the SDL keyboard, and the on-screen panel (lvgl_display_sdl.cpp) injects mouse
+// clicks/drags — and the sim drivers read it from the input thread. All shared
+// state is atomic, so there's no lock and no data race.
 //
 // Key map (see pump() in sim_input.cpp):
 //   Nav encoder rotate : Left / Right       Nav select/hold-quit : Return
 //   Enc1 turn / button : Q / W  +  E         Enc2 turn / button  : A / S  +  D
 //   Enc3 turn (master) : Z / X               Footswitches FS0..3 : 1 2 3 4
+//
+// The same controls are also drawn on screen and driven by the mouse (drag an
+// encoder vertically to turn it, click its centre for the push-switch, click a
+// footswitch to engage it). Mouse and keyboard are OR'd together.
 
 #pragma once
+
+#include <cstdint>
 
 namespace sim_input {
 
@@ -28,6 +34,22 @@ int encoder_step(Enc e);
 
 // Current pressed state (no edge).
 bool button_pressed(Btn b);
+
+// ---- mouse injection (on-screen panel -> bus) ------------------------------
+// Add `steps` detents of rotation (+CW / -CCW) to an encoder, as if turned.
+void inject_encoder(Enc e, int steps);
+// Hold/release a button from the mouse; OR'd with the keyboard in pump().
+void set_mouse_button(Btn b, bool pressed);
+// Monotonic running detent count (never consumed) — lets the panel draw the
+// knob at its current angle. Reflects both keyboard turns and mouse drags.
+long encoder_total(Enc e);
+
+// ---- LED snapshot (leds_stub.cpp -> on-screen panel) -----------------------
+// Publish the staged NeoPixel frame (rgbw[count*4], the W byte ignored) so the
+// panel can light the on-screen LEDs. Called by Leds::show() in the stub.
+void publish_leds(const uint8_t* rgbw, int count);
+// Read back one pixel's colour (0,0,0 = off).
+void led_rgb(int i, uint8_t& r, uint8_t& g, uint8_t& b);
 
 // Map a sim driver's init() identifier to a logical control, mirroring the
 // pi-Stomp v3 wiring in board_v3.h.

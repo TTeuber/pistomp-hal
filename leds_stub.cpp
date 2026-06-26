@@ -1,14 +1,15 @@
 // leds_stub.cpp — desktop stand-in for leds.cpp.
 //
-// No NeoPixel strip on the Mac. Calls succeed and staged colors are stored (so
-// any code that reads back frame_ still works), but show() does nothing visible.
-// An on-screen LED strip could be added later; for now footswitch/LED *logic*
-// runs fully, just without lights.
+// No NeoPixel strip on the Mac. Calls succeed and staged colors are stored, and
+// show() publishes the frame to the sim bus so the on-screen panel
+// (lvgl_display_sdl.cpp) can light its simulated LEDs. The footswitch/LED logic
+// thus runs fully, with the lights mirrored on screen instead of on hardware.
 
 #include "leds.h"
+#include "sim_input.h"
 
 bool Leds::init() { return true; }
-void Leds::close() {}
+void Leds::close() { clear(); show(); }   // blank the on-screen strip on exit
 
 void Leds::set(int i, uint8_t r, uint8_t g, uint8_t b) {
     if (i < 0 || i >= COUNT) return;
@@ -21,5 +22,9 @@ void Leds::clear() {
     for (auto& b : frame_) b = 0;
 }
 
-bool Leds::show() { return true; }
+bool Leds::show() {
+    sim_input::publish_leds(frame_, COUNT);
+    return true;
+}
+
 bool Leds::set_brightness(uint8_t) { return true; }
