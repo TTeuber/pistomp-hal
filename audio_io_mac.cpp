@@ -31,7 +31,9 @@ namespace {
 // AudioIO::Impl being a private nested type.
 struct MacDev {
     ma_device device;
-    bool      inited = false;
+    bool      inited = false;       // a ma_device is live (any direction)
+    bool      capActive = false;    // capture direction is open
+    bool      playActive = false;   // playback direction is open
     unsigned  ch = 2;
     AudioCallback cb;
 
@@ -67,7 +69,9 @@ void data_cb(ma_device* dev, void* pOut, const void* pIn, ma_uint32 frames) {
 
     if (d->cb) d->cb(d->inPtrs.data(), d->outPtrs.data(), (int)frames);
 
-    // deinterleaved float -> interleaved float out, clamped to [-1, 1].
+    // deinterleaved float -> interleaved float out, clamped to [-1, 1]. pOut is
+    // null on a capture-only device (output set to "No Output") -- nothing to do.
+    if (!out) return;
     for (ma_uint32 f = 0; f < frames; f++)
         for (unsigned c = 0; c < ch; c++) {
             float v = d->outF[c][f];
@@ -85,8 +89,9 @@ struct AudioIO::Impl {
 
     // Resolve a device name (from AudioConfig) to its ma_device_id within the
     // given direction's enumerated list. Returns true and fills `out` on a hit;
-    // false (caller passes nullptr to ma_device_init = system default) on an
-    // empty name or a name that's no longer present.
+    // false on an empty name (= "No device" for that direction) or a name that's
+    // no longer present (unplugged). The caller leaves that direction CLOSED on
+    // false -- it is never substituted with the system default.
     bool resolve(ma_device_type type, const std::string& name, ma_device_id& out) {
         if (name.empty() || !ctxInited) return false;
         ma_device_info* infos = nullptr;
@@ -98,6 +103,50 @@ struct AudioIO::Impl {
         for (ma_uint32 i = 0; i < count; i++)
             if (name == infos[i].name) { out = infos[i].id; return true; }
         return false;
+    }
+
+    // Build + init the ma_device for `cfg`, opening only the direction(s) whose
+    // chosen device is currently present: both -> duplex, one -> playback/capture
+    // only, neither -> no device at all (idle; the app stays up and re-attaches
+    // when a device reappears). Sets d.inited / d.capActive / d.playActive.
+    // Returns false (and *err) only on a genuine ma_device_init failure.
+    bool initDevice(const AudioConfig& cfg, const char** err) {
+        d.inited = d.capActive = d.playActive = false;
+
+        ma_device_id playId{}, capId{};
+        const bool playWanted = resolve(ma_device_type_playback, cfg.playbackName, playId);
+        const bool capWanted  = resolve(ma_device_type_capture,  cfg.captureName,  capId);
+
+        if (!playWanted && !capWanted)
+            return true; // idle: nothing present to open -> silence, no feedback
+
+        const ma_device_type type = (playWanted && capWanted) ? ma_device_type_duplex
+                                   : playWanted               ? ma_device_type_playback
+                                                              : ma_device_type_capture;
+        ma_device_config c = ma_device_config_init(type);
+        c.sampleRate = cfg.rate;
+        if (capWanted) {
+            c.capture.format    = ma_format_f32;
+            c.capture.channels  = cfg.channels;
+            c.capture.pDeviceID = &capId;
+        }
+        if (playWanted) {
+            c.playback.format    = ma_format_f32;
+            c.playback.channels  = cfg.channels;
+            c.playback.pDeviceID = &playId;
+        }
+        c.periodSizeInFrames = cfg.wantPeriod;   // fixed-size callbacks (miniaudio default)
+        c.dataCallback       = data_cb;
+        c.pUserData          = &d;
+
+        if (ma_device_init(&ctx, &c, &d.device) != MA_SUCCESS) {
+            if (err) *err = "miniaudio: ma_device_init failed";
+            return false;
+        }
+        d.inited     = true;
+        d.capActive  = capWanted;
+        d.playActive = playWanted;
+        return true;
     }
 };
 
@@ -145,28 +194,11 @@ bool AudioIO::open(const AudioConfig& cfg) {
     }
     impl_->ctxInited = true;
 
-    ma_device_config c = ma_device_config_init(ma_device_type_duplex);
-    c.sampleRate         = cfg.rate;
-    c.capture.format     = ma_format_f32;
-    c.capture.channels   = cfg.channels;
-    c.playback.format    = ma_format_f32;
-    c.playback.channels  = cfg.channels;
-    c.periodSizeInFrames = cfg.wantPeriod;   // fixed-size callbacks (miniaudio default)
-    c.dataCallback       = data_cb;
-    c.pUserData          = &d;
-
-    // Pin to the named devices when given; nullptr id = system default.
-    ma_device_id playId{}, capId{};
-    if (impl_->resolve(ma_device_type_playback, cfg.playbackName, playId))
-        c.playback.pDeviceID = &playId;
-    if (impl_->resolve(ma_device_type_capture, cfg.captureName, capId))
-        c.capture.pDeviceID = &capId;
-
-    if (ma_device_init(&impl_->ctx, &c, &d.device) != MA_SUCCESS) {
-        lastError_ = "miniaudio: ma_device_init failed (no audio device?)";
-        return false;
-    }
-    d.inited = true;
+    // Open whichever of the chosen devices are present (or none -> idle). A
+    // chosen-but-absent device does NOT block startup; the reconnect poll
+    // re-attaches it when it reappears.
+    const char* err = nullptr;
+    if (!impl_->initDevice(cfg, &err)) { lastError_ = err; return false; }
 
     // With fixed-size callbacks the DSP block equals the requested period.
     period_ = (int)cfg.wantPeriod;
@@ -175,8 +207,11 @@ bool AudioIO::open(const AudioConfig& cfg) {
 }
 
 bool AudioIO::start(AudioCallback cb) {
-    if (!impl_ || !impl_->d.inited) { lastError_ = "miniaudio: device not open"; return false; }
+    if (!impl_) { lastError_ = "miniaudio: device not open"; return false; }
     impl_->d.cb = std::move(cb);
+    // Idle (no device present/selected): there's nothing to start, but report
+    // success and "running" so the app stays up and can re-attach later.
+    if (!impl_->d.inited) { running_.store(true); return true; }
     if (ma_device_start(&impl_->d.device) != MA_SUCCESS) {
         lastError_ = "miniaudio: ma_device_start failed";
         return false;
@@ -214,34 +249,21 @@ bool AudioIO::reopen(const AudioConfig& cfg) {
     cfg_ = cfg;
     // Only the block size and channel count affect the preallocated buffers;
     // re-alloc when either changes so the RT callback stays allocation-free.
-    if (cfg.channels != d.ch || (int)d.inF.empty() || d.inF[0].size() < (size_t)cfg.maxFrames)
+    if (cfg.channels != d.ch || d.inF.empty() || d.inF[0].size() < (size_t)cfg.maxFrames)
         d.alloc(cfg.channels, cfg.maxFrames);
 
-    ma_device_config c = ma_device_config_init(ma_device_type_duplex);
-    c.sampleRate         = cfg.rate;
-    c.capture.format     = ma_format_f32;
-    c.capture.channels   = cfg.channels;
-    c.playback.format    = ma_format_f32;
-    c.playback.channels  = cfg.channels;
-    c.periodSizeInFrames = cfg.wantPeriod;
-    c.dataCallback       = data_cb;
-    c.pUserData          = &d;
-
-    ma_device_id playId{}, capId{};
-    if (impl_->resolve(ma_device_type_playback, cfg.playbackName, playId))
-        c.playback.pDeviceID = &playId;
-    if (impl_->resolve(ma_device_type_capture, cfg.captureName, capId))
-        c.capture.pDeviceID = &capId;
-
-    if (ma_device_init(&impl_->ctx, &c, &d.device) != MA_SUCCESS) {
-        lastError_ = "miniaudio: ma_device_init failed on reopen";
-        return false;
-    }
-    d.inited = true;
+    // Re-open whichever chosen devices are present now (or none -> idle). Same
+    // per-direction logic as open(); used by the settings switch and by the
+    // reconnect poll when a device is plugged/unplugged.
+    const char* err = nullptr;
+    if (!impl_->initDevice(cfg, &err)) { lastError_ = err; return false; }
 
     period_ = (int)cfg.wantPeriod;
     if (period_ <= 0 || period_ > cfg.maxFrames) period_ = cfg.maxFrames;
     return true;
 }
+
+bool AudioIO::captureActive()  const { return impl_ && impl_->d.capActive; }
+bool AudioIO::playbackActive() const { return impl_ && impl_->d.playActive; }
 
 } // namespace pistomp

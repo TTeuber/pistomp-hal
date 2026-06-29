@@ -35,9 +35,12 @@ struct AudioConfig {
     int         rtPriority = 80;    // SCHED_FIFO priority for the audio thread
 
     // macOS simulator only (ignored by the ALSA backend): pick host devices by
-    // name. Empty = system default. Resolved against playbackDevices()/
-    // captureDevices() at open()/reopen() time; an unknown name falls back to
-    // the default so a saved-but-unplugged device doesn't break startup.
+    // name, DAW-style. Empty = No device for that direction (that side is left
+    // closed -> silence). A name = that specific device, opened only when it's
+    // present; a saved-but-unplugged name is NOT substituted with the system
+    // default (that's the feedback hazard) -- the direction stays closed and the
+    // app re-attaches it when the device reappears. Resolved against
+    // playbackDevices()/captureDevices() at open()/reopen() time.
     std::string playbackName;
     std::string captureName;
 };
@@ -87,6 +90,13 @@ public:
     // or after open(); enumeration uses the backend's device context.
     std::vector<AudioDeviceInfo> playbackDevices();
     std::vector<AudioDeviceInfo> captureDevices();
+
+    // Which directions are actually open right now (macOS simulator). A chosen
+    // device that's currently unplugged leaves its direction inactive without
+    // failing the open -- the app polls these to know when to re-attach a device
+    // that has (re)appeared. The ALSA backend's fixed codec is always both.
+    bool captureActive()  const;
+    bool playbackActive() const;
 
     // Live device/format switch (macOS simulator): stop the running device,
     // tear it down, and re-open on `cfg` (new playback/capture names, rate, or

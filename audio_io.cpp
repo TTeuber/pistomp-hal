@@ -160,6 +160,10 @@ void AudioIO::stop() {
 // fixed hardware, so there's nothing to enumerate and nothing to switch to.
 std::vector<AudioDeviceInfo> AudioIO::playbackDevices() { return {}; }
 std::vector<AudioDeviceInfo> AudioIO::captureDevices()  { return {}; }
+// The Pi's codec is fixed duplex hardware: capture and playback are always both
+// open once open() succeeds.
+bool AudioIO::captureActive()  const { return impl_ != nullptr; }
+bool AudioIO::playbackActive() const { return impl_ != nullptr; }
 bool AudioIO::reopen(const AudioConfig&) {
     lastError_ = "reopen unsupported on ALSA backend";
     return false;
