@@ -15,8 +15,12 @@
 // flush callback; LVGL itself renders little-endian RGB565.)
 #define LV_COLOR_DEPTH 16
 
-// Fonts: the default 14px for labels, plus a big 28px for the MUTED/LIVE banner.
+// Fonts: 14px body default, 16px for values/section headers and 20px for page
+// titles (a type ramp echoing the web UI), plus a big 28px for the tuner/master
+// banner.
 #define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_MONTSERRAT_16 1
+#define LV_FONT_MONTSERRAT_20 1
 #define LV_FONT_MONTSERRAT_28 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 
