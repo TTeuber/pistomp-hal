@@ -20,6 +20,31 @@
 #   * macOS (APPLE branch): a desktop simulator -- LVGL in an SDL window, audio
 #     via miniaudio/CoreAudio, controls fed from the keyboard. Lets the whole app
 #     run on the Mac with no Pi. See *_sim.cpp / *_stub.cpp / *_sdl.cpp / *_mac.cpp.
+#
+# CONSUMING. Works standalone (top-level) or embedded via FetchContent:
+#
+#   FetchContent_Declare(pistomp_hal
+#     GIT_REPOSITORY https://github.com/TTeuber/pistomp-hal.git
+#     GIT_TAG v0.1.0)
+#   FetchContent_MakeAvailable(pistomp_hal)
+#   target_link_libraries(my_app PRIVATE pistomp_hal)
+#
+# For local dual-editing against a checkout, override the fetch:
+#   -DFETCHCONTENT_SOURCE_DIR_PISTOMP_HAL=/path/to/pistomp-hal
+
+cmake_minimum_required(VERSION 3.22)
+project(pistomp_hal VERSION 0.1.0 LANGUAGES C CXX)
+
+# Top-level-only settings: when embedded, the parent project owns these.
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_C_STANDARD 11)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+  endif()
+endif()
 
 find_package(Threads REQUIRED)
 include(FetchContent)

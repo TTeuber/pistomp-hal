@@ -1,0 +1,13 @@
+# Out-of-source CMake build dirs (artifacts + FetchContent downloads)
+/build*/
+
+.cache/
+compile_commands.json
+CMakeUserPresets.json
+.vscode/
+.idea/
+*.swp
+*~
+
+.DS_Store
+._*
