@@ -5,6 +5,7 @@
 // instance via a small pointer registry, so the header stays unchanged.
 
 #include "pistomp/gpio_button.h"
+#include "pistomp/detail/debounce.h"   // shared edge logic (same as the Pi driver)
 #include "pistomp/sim_input.h"
 
 #include <unordered_map>
@@ -27,8 +28,5 @@ bool GpioButton::is_pressed() {
 }
 
 bool GpioButton::poll_pressed_edge() {
-    bool now = is_pressed();
-    bool edge = now && !was_pressed_;
-    was_pressed_ = now;
-    return edge;
+    return pistomp::detail::rising_edge(was_pressed_, is_pressed());
 }

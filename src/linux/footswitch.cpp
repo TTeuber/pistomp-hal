@@ -2,6 +2,7 @@
 // sandbox/adc_read.cpp; adds edge detection on top.
 
 #include "pistomp/footswitch.h"
+#include "pistomp/detail/debounce.h"   // shared threshold + edge logic
 
 #include <cstdint>
 #include <cstdio>
@@ -53,16 +54,14 @@ int Footswitch::read_raw() {
 bool Footswitch::poll_pressed_edge() {
     int v = read_raw();
     if (v < 0) return false;
-    bool pressed = (v <= threshold_);
-    bool edge = pressed && !was_pressed_;     // released -> pressed transition
-    was_pressed_ = pressed;
-    return edge;
+    bool pressed = pistomp::detail::pressed_below(v, threshold_);
+    return pistomp::detail::rising_edge(was_pressed_, pressed);
 }
 
 bool Footswitch::is_pressed() {
     int v = read_raw();
     if (v < 0) return false;
-    return v <= threshold_;
+    return pistomp::detail::pressed_below(v, threshold_);
 }
 
 void Footswitch::close() {

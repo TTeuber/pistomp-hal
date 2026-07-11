@@ -3,6 +3,7 @@
 // poll its level. Active-low (pressed = 0) like the reference gpiozero Button.
 
 #include "pistomp/gpio_button.h"
+#include "pistomp/detail/debounce.h"   // shared edge logic
 
 #include <cstdio>
 #include <gpiod.h>   // libgpiod v1 C API
@@ -25,10 +26,7 @@ bool GpioButton::is_pressed() {
 }
 
 bool GpioButton::poll_pressed_edge() {
-    bool pressed = is_pressed();
-    bool edge = pressed && !was_pressed_;
-    was_pressed_ = pressed;
-    return edge;
+    return pistomp::detail::rising_edge(was_pressed_, is_pressed());
 }
 
 void GpioButton::close() {

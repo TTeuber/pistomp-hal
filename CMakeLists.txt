@@ -47,6 +47,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 endif()
 
 option(PISTOMP_HAL_BUILD_EXAMPLES "Build the example pedals in examples/" OFF)
+option(PISTOMP_HAL_BUILD_TESTS "Build the host-runnable unit tests in tests/" OFF)
 
 find_package(Threads REQUIRED)
 include(FetchContent)
@@ -159,4 +160,9 @@ endif()
 
 if(PISTOMP_HAL_BUILD_EXAMPLES)
   add_subdirectory(examples)
+endif()
+
+if(PISTOMP_HAL_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
 endif()

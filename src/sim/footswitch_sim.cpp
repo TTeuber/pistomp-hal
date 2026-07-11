@@ -5,6 +5,7 @@
 // bus. channel_ is a real header field, so nothing in the header changes.
 
 #include "pistomp/footswitch.h"
+#include "pistomp/detail/debounce.h"   // shared edge logic (same as the Pi driver)
 #include "pistomp/sim_input.h"
 
 bool Footswitch::init(int channel, int threshold) {
@@ -21,8 +22,5 @@ bool Footswitch::is_pressed() {
 }
 
 bool Footswitch::poll_pressed_edge() {
-    bool now = is_pressed();
-    bool edge = now && !was_pressed_;
-    was_pressed_ = now;
-    return edge;
+    return pistomp::detail::rising_edge(was_pressed_, is_pressed());
 }
