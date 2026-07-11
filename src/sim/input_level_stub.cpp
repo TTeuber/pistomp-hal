@@ -3,7 +3,7 @@
 // The sim has no ADC. available() stays false so the app meters the digital audio
 // peak instead (computed in the audio callback); read() never produces a value.
 
-#include "input_level.h"
+#include "pistomp/input_level.h"
 
 namespace pistomp {
 

@@ -2,7 +2,7 @@
 // open the RP1 pinctrl chip, request the line as an input with a pull-up, then
 // poll its level. Active-low (pressed = 0) like the reference gpiozero Button.
 
-#include "gpio_button.h"
+#include "pistomp/gpio_button.h"
 
 #include <cstdio>
 #include <gpiod.h>   // libgpiod v1 C API

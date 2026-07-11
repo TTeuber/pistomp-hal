@@ -4,8 +4,8 @@
 // gpiod line. The logical button is resolved from the pin and cached per
 // instance via a small pointer registry, so the header stays unchanged.
 
-#include "gpio_button.h"
-#include "sim_input.h"
+#include "pistomp/gpio_button.h"
+#include "pistomp/sim_input.h"
 
 #include <unordered_map>
 

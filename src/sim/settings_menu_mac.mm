@@ -14,7 +14,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-#include "sim_menu.h"
+#include "pistomp/sim_menu.h"
 
 // ObjC controller: owns a heap copy of the Model and the lazily-built window.
 @interface PSSettingsController : NSObject

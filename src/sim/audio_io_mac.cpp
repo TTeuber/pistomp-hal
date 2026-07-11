@@ -19,7 +19,7 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 
-#include "audio_io.h"
+#include "pistomp/audio_io.h"
 
 #include <vector>
 

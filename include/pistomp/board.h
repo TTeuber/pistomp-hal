@@ -26,12 +26,12 @@
 #pragma once
 #include <mutex>
 
-#include "board_v3.h"
-#include "encoder.h"
-#include "footswitch.h"
-#include "gpio_button.h"
-#include "ili9341.h"
-#include "input_level.h"
+#include "pistomp/board_v3.h"
+#include "pistomp/encoder.h"
+#include "pistomp/footswitch.h"
+#include "pistomp/gpio_button.h"
+#include "pistomp/ili9341.h"
+#include "pistomp/input_level.h"
 
 namespace pistomp {
 

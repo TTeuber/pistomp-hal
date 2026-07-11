@@ -1,7 +1,7 @@
 // sim_input.cpp — see sim_input.h. Translates the SDL keyboard into the
 // pi-Stomp's control surface for the Mac simulator.
 
-#include "sim_input.h"
+#include "pistomp/sim_input.h"
 
 #include <SDL2/SDL.h>
 

@@ -5,8 +5,8 @@
 // resolved from the D pin at init() and stashed in store_ (the header's private
 // decoder-state field, unused here) so the header stays unchanged.
 
-#include "encoder.h"
-#include "sim_input.h"
+#include "pistomp/encoder.h"
+#include "pistomp/sim_input.h"
 
 bool Encoder::init(int d_pin, int /*clk_pin*/, const char* /*consumer*/) {
     store_ = (unsigned)sim_input::encoder_for_dpin(d_pin);

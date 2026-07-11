@@ -14,12 +14,12 @@
 # the wiring. Deliberately depends on NO audio framework -- the HAL is about
 # hardware lines, not DSP, so it stays reusable across apps.
 #
-# PLATFORMS. Each subsystem's header is the contract; the .cpp behind it is
-# selected per platform here -- "a file move, not a rewrite":
-#   * Linux/Pi (else branch): the real drivers (libgpiod, spidev, ALSA, ILI9341).
-#   * macOS (APPLE branch): a desktop simulator -- LVGL in an SDL window, audio
+# PLATFORMS. Each subsystem's header (include/pistomp/) is the contract; the
+# .cpp behind it is selected per platform here -- "a file move, not a rewrite":
+#   * Linux/Pi (src/linux/): the real drivers (libgpiod, spidev, ALSA, ILI9341).
+#   * macOS (src/sim/): a desktop simulator -- LVGL in an SDL window, audio
 #     via miniaudio/CoreAudio, controls fed from the keyboard. Lets the whole app
-#     run on the Mac with no Pi. See *_sim.cpp / *_stub.cpp / *_sdl.cpp / *_mac.cpp.
+#     run on the Mac with no Pi.
 #
 # CONSUMING. Works standalone (top-level) or embedded via FetchContent:
 #
@@ -67,16 +67,16 @@ if(APPLE)
   FetchContent_MakeAvailable(miniaudio)   # ${miniaudio_SOURCE_DIR}/miniaudio.h
 
   set(HAL_SOURCES
-    encoder_sim.cpp
-    footswitch_sim.cpp
-    gpio_button_sim.cpp
-    leds_stub.cpp
-    input_level_stub.cpp
-    ili9341_stub.cpp
-    lvgl_display_sdl.cpp
-    audio_io_mac.cpp
-    sim_input.cpp
-    settings_menu_mac.mm
+    src/sim/encoder_sim.cpp
+    src/sim/footswitch_sim.cpp
+    src/sim/gpio_button_sim.cpp
+    src/sim/leds_stub.cpp
+    src/sim/input_level_stub.cpp
+    src/sim/ili9341_stub.cpp
+    src/sim/lvgl_display_sdl.cpp
+    src/sim/audio_io_mac.cpp
+    src/sim/sim_input.cpp
+    src/sim/settings_menu_mac.mm
   )
 else()
   # --- Linux / Raspberry Pi hardware backend -------------------------------
@@ -85,15 +85,15 @@ else()
   pkg_check_modules(ALSA REQUIRED alsa)        # libasound, for audio_io (codec I/O)
 
   set(HAL_SOURCES
-    encoder.cpp
-    footswitch.cpp
-    gpio_button.cpp
-    leds.cpp
-    input_level.cpp
-    ili9341.cpp
-    lvgl_display.cpp
-    audio_io.cpp
-    settings_menu_stub.cpp
+    src/linux/encoder.cpp
+    src/linux/footswitch.cpp
+    src/linux/gpio_button.cpp
+    src/linux/leds.cpp
+    src/linux/input_level.cpp
+    src/linux/ili9341.cpp
+    src/linux/lvgl_display.cpp
+    src/linux/audio_io.cpp
+    src/linux/settings_menu_stub.cpp
   )
 endif()
 
@@ -122,7 +122,8 @@ endif()
 
 add_library(pistomp_hal STATIC ${HAL_SOURCES})
 
-target_include_directories(pistomp_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Consumers include the pistomp/ prefix: #include "pistomp/encoder.h"
+target_include_directories(pistomp_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(pistomp_hal PUBLIC
   lvgl
   Threads::Threads

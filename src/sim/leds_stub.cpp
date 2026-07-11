@@ -5,8 +5,8 @@
 // (lvgl_display_sdl.cpp) can light its simulated LEDs. The footswitch/LED logic
 // thus runs fully, with the lights mirrored on screen instead of on hardware.
 
-#include "leds.h"
-#include "sim_input.h"
+#include "pistomp/leds.h"
+#include "pistomp/sim_input.h"
 
 bool Leds::init() { return true; }
 void Leds::close() { clear(); show(); }   // blank the on-screen strip on exit

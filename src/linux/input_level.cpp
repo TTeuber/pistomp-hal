@@ -4,8 +4,8 @@
 // footswitch.cpp -- the two clip detectors live on ADC ch 6 and 7. One fd serves
 // both channels (the channel is selected per-transfer in the command bytes).
 
-#include "input_level.h"
-#include "board_v3.h"
+#include "pistomp/input_level.h"
+#include "pistomp/board_v3.h"
 
 #include <cstdint>
 #include <cstdio>

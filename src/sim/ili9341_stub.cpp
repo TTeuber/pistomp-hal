@@ -6,7 +6,7 @@
 // on shutdown — compiles and runs unchanged. init() still reports the panel's
 // dimensions so the SDL window is created at the right size.
 
-#include "ili9341.h"
+#include "pistomp/ili9341.h"
 
 bool Ili9341::init(int rotation) {
     if (rotation == 0) { w_ = 240; h_ = 320; }   // portrait

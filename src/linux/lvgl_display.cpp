@@ -9,8 +9,8 @@
 // blit just that rectangle. This is why a label update costs a few KB of SPI,
 // not a whole 150 KB frame.
 
-#include "lvgl_display.h"
-#include "ili9341.h"
+#include "pistomp/lvgl_display.h"
+#include "pistomp/ili9341.h"
 
 #include "lvgl.h"
 

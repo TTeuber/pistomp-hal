@@ -4,8 +4,8 @@
 // control (footswitch 0..3 or the nav switch) on the keyboard-fed sim_input
 // bus. channel_ is a real header field, so nothing in the header changes.
 
-#include "footswitch.h"
-#include "sim_input.h"
+#include "pistomp/footswitch.h"
+#include "pistomp/sim_input.h"
 
 bool Footswitch::init(int channel, int threshold) {
     channel_ = channel;

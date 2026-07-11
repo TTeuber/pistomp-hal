@@ -3,7 +3,7 @@
 // CS, DC toggling, and the Adafruit init sequence are unchanged from the
 // known-good sandbox version.
 
-#include "ili9341.h"
+#include "pistomp/ili9341.h"
 
 #include <cstdio>
 #include <cstring>

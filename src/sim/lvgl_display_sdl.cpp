@@ -20,9 +20,9 @@
 // All of this runs on the UI thread via two LVGL timers (pump + render), serviced
 // by the app's existing lv_timer_handler() loop — so no application code changes.
 
-#include "lvgl_display.h"
-#include "ili9341.h"
-#include "sim_input.h"
+#include "pistomp/lvgl_display.h"
+#include "pistomp/ili9341.h"
+#include "pistomp/sim_input.h"
 
 #include "lvgl.h"
 #include <SDL2/SDL.h>

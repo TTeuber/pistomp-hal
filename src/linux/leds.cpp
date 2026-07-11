@@ -2,7 +2,7 @@
 // exactly 24 bytes = 6 pixels x 4 bytes, order R,G,B,W, no brightness byte
 // (brightness is the overlay's global multiplier). A write renders immediately.
 
-#include "leds.h"
+#include "pistomp/leds.h"
 
 #include <cstdio>
 #include <fcntl.h>

@@ -2,7 +2,7 @@
 // pistomp/encoder.py's _process_gpios(), which itself adapts the classic
 // table-based rotary decoder. Annotated so the algorithm is understandable.
 
-#include "encoder.h"
+#include "pistomp/encoder.h"
 
 #include <cstdio>
 #include <gpiod.h>   // libgpiod v1 C API

@@ -4,7 +4,7 @@
 // audio_thread() is here, once. The numbered [n] notes mirror the original
 // rt_passthrough.cpp teaching comments.
 
-#include "audio_io.h"
+#include "pistomp/audio_io.h"
 
 #include <alsa/asoundlib.h>
 #include <pthread.h>

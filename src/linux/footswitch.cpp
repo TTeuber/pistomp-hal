@@ -1,7 +1,7 @@
 // footswitch.cpp — see footswitch.h. SPI transaction logic unchanged from
 // sandbox/adc_read.cpp; adds edge detection on top.
 
-#include "footswitch.h"
+#include "pistomp/footswitch.h"
 
 #include <cstdint>
 #include <cstdio>

@@ -6,7 +6,7 @@
 // as ili9341_stub.cpp / leds_stub.cpp: the header is the contract, the platform
 // picks the .cpp.
 
-#include "sim_menu.h"
+#include "pistomp/sim_menu.h"
 
 namespace sim_menu {
 
