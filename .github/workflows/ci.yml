@@ -1,0 +1,67 @@
+# CI: prove both backends of the HAL from one source tree.
+#   * macos-sim  -- the desktop simulator backend (SDL2/miniaudio); also runs
+#                   the host unit tests.
+#   * linux-pi   -- the real Pi backend (libgpiod/ALSA), compiled in the same
+#                   debian:bookworm arm64 environment the Pi runs, so the CI
+#                   binary links against the Pi's glibc.
+# Examples build on BOTH jobs -- that's the dual-platform claim, enforced.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-sim:
+    name: macOS (simulator backend)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install ninja sdl2
+
+      - name: Configure
+        run: >
+          cmake -G Ninja -B build
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          -DPISTOMP_HAL_BUILD_EXAMPLES=ON
+          -DPISTOMP_HAL_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  linux-pi:
+    name: Linux arm64 (Pi backend, debian:bookworm)
+    runs-on: ubuntu-24.04-arm
+    container: debian:bookworm
+    steps:
+      - name: Install dependencies
+        run: >
+          apt-get update && apt-get install -y
+          build-essential cmake ninja-build pkg-config git ca-certificates
+          libgpiod-dev libasound2-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -G Ninja -B build
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          -DPISTOMP_HAL_BUILD_EXAMPLES=ON
+          -DPISTOMP_HAL_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
