@@ -46,6 +46,8 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   endif()
 endif()
 
+option(PISTOMP_HAL_BUILD_EXAMPLES "Build the example pedals in examples/" OFF)
+
 find_package(Threads REQUIRED)
 include(FetchContent)
 
@@ -153,4 +155,8 @@ else()
   # executable, which is fine -- libasound is always present on the Pi.)
   target_include_directories(pistomp_hal PRIVATE ${ALSA_INCLUDE_DIRS})
   target_link_libraries(pistomp_hal PRIVATE ${ALSA_LIBRARIES})
+endif()
+
+if(PISTOMP_HAL_BUILD_EXAMPLES)
+  add_subdirectory(examples)
 endif()
