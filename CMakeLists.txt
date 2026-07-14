@@ -33,7 +33,7 @@
 #   -DFETCHCONTENT_SOURCE_DIR_PISTOMP_HAL=/path/to/pistomp-hal
 
 cmake_minimum_required(VERSION 3.22)
-project(pistomp_hal VERSION 0.2.0 LANGUAGES C CXX)
+project(pistomp_hal VERSION 0.2.1 LANGUAGES C CXX)
 
 # Top-level-only settings: when embedded, the parent project owns these.
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
